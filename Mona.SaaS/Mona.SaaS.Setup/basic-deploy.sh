@@ -164,7 +164,7 @@ event_version="2021-10-01" # Default event version is always the latest one. Can
 language="en" # Default UI language is English ("en"). Can be overridden using [-l] flag below.
 integration_pack="default"
 
-while getopts "a:d:g:l:n:r:s:hp" opt; do
+while getopts "a:d:g:l:n:r:s:hp:cid:cs:spid" opt; do
     case $opt in
         a)
             app_service_plan_id=$OPTARG
@@ -198,6 +198,16 @@ while getopts "a:d:g:l:n:r:s:hp" opt; do
         ;;
         p)
             no_publish=1
+        ;;
+        cid)
+            mona_aad_app_id=$OPTARG
+        ;;
+        cs)
+            # TODO the secret should probably be stored in a key vault
+            mona_aad_app_secret=$OPTARG
+        ;;
+        spid)
+            mona_aad_sp_id=$OPTARG
         ;;
         j)
             no_rbac=1 # Ill-advised. Only here for backward compatibility with early versions of Mona.
@@ -257,6 +267,26 @@ if [[ -n $app_service_plan_id ]]; then
     if [[ $? -ne 0 ]]; then exit 1; fi;
 fi
 
+if [[ -n $mona_aad_app_id ]]; then
+    echo "$lp ❌   Parameter validation failed. Mona aad app id not provided."
+    exit 1; 
+fi
+
+if [[ -n $mona_aad_app_secret ]]; then
+    echo "$lp ❌   Parameter validation failed. Mona aad app secret value not provided."
+    exit 1; 
+fi
+
+if [[ -n $mona_aad_sp_id ]]; then
+    echo "$lp ❌   Parameter validation failed. Mona aad service principal id not provided."
+    exit 1; 
+fi
+
+if [[ -n $mona_aad_app_id ]]; then
+    echo "$lp ❌   Parameter validation failed. Mona aad app id not provided."
+    exit 1; 
+fi
+
 if [[ -n $param_valid_failed ]]; then
     echo "$lp ❌   Parameter validation failed. Please review then try again. Setup failed."
     exit 1
@@ -302,100 +332,103 @@ subscription_id=$(az account show --query id --output tsv);
 current_user_tid=$(az account show --query tenantId --output tsv);
 
 # Create the Mona app registration in AAD...
+# only if the user has not provided a client ID and secret.
 
-echo "$lp 🛡️   Creating Mona Azure Active Directory (AAD) app registration..."
+if [[ false ]]; then
+    echo "$lp 🛡️   Creating Mona Azure Active Directory (AAD) app registration..."
 
-mona_aad_app_name="$display_name"
+    mona_aad_app_name="$display_name"
 
-graph_token=$(az account get-access-token \
-    --resource-type ms-graph \
-    --query accessToken \
-    --output tsv);
+    graph_token=$(az account get-access-token \
+        --resource-type ms-graph \
+        --query accessToken \
+        --output tsv);
 
-mona_admin_role_id=$(cat /proc/sys/kernel/random/uuid)
-create_mona_app_json=$(cat ./aad/manifest.json)
-create_mona_app_json="${create_mona_app_json/__aad_app_name__/${mona_aad_app_name}}"
-create_mona_app_json="${create_mona_app_json/__deployment_name__/${deployment_name}}"
-create_mona_app_json="${create_mona_app_json/__admin_role_id__/${mona_admin_role_id}}"
+    mona_admin_role_id=$(cat /proc/sys/kernel/random/uuid)
+    create_mona_app_json=$(cat ./aad/manifest.json)
+    create_mona_app_json="${create_mona_app_json/__aad_app_name__/${mona_aad_app_name}}"
+    create_mona_app_json="${create_mona_app_json/__deployment_name__/${deployment_name}}"
+    create_mona_app_json="${create_mona_app_json/__admin_role_id__/${mona_admin_role_id}}"
 
-# Getting around some occasional consistency issues by implementing the retry pattern. This was fun.
-# If you're reading this code and you've never heard of the retry pattern, check this out --
-# https://docs.microsoft.com/en-us/azure/architecture/patterns/retry
+    # Getting around some occasional consistency issues by implementing the retry pattern. This was fun.
+    # If you're reading this code and you've never heard of the retry pattern, check this out --
+    # https://docs.microsoft.com/en-us/azure/architecture/patterns/retry
 
-for i1 in {1..5}; do
-    create_mona_app_response=$(curl \
-        -X POST \
-        -H "Content-Type: application/json" \
-        -H "Authorization: Bearer $graph_token" \
-        -d "$create_mona_app_json" \
-        "https://graph.microsoft.com/v1.0/applications")
+    for i1 in {1..5}; do
+        create_mona_app_response=$(curl \
+            -X POST \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $graph_token" \
+            -d "$create_mona_app_json" \
+            "https://graph.microsoft.com/v1.0/applications")
 
-    mona_aad_object_id=$(echo "$create_mona_app_response" | jq -r ".id")
-    mona_aad_app_id=$(echo "$create_mona_app_response" | jq -r ".appId")
+        mona_aad_object_id=$(echo "$create_mona_app_response" | jq -r ".id")
+        mona_aad_app_id=$(echo "$create_mona_app_response" | jq -r ".appId")
 
-    if [[ -z $mona_aad_object_id || -z $mona_aad_app_id || $mona_aad_object_id == null || $mona_aad_sp_id == null ]]; then
-        if [[ $i1 == 5 ]]; then
-            # We tried and we failed. Such is life.
-            echo "$lp ❌   Failed to create Mona AAD app. Setup failed."
-            exit 1
+        if [[ -z $mona_aad_object_id || -z $mona_aad_app_id || $mona_aad_object_id == null || $mona_aad_sp_id == null ]]; then
+            if [[ $i1 == 5 ]]; then
+                # We tried and we failed. Such is life.
+                echo "$lp ❌   Failed to create Mona AAD app. Setup failed."
+                exit 1
+            else
+                sleep_for=$((2**i1)) # Exponential backoff. 2..4..8..16 seconds.
+                echo "$lp ⚠️   Trying to create app again in [$sleep_for] seconds."
+                sleep $sleep_for
+            fi
         else
-            sleep_for=$((2**i1)) # Exponential backoff. 2..4..8..16 seconds.
-            echo "$lp ⚠️   Trying to create app again in [$sleep_for] seconds."
-            sleep $sleep_for
+            break
         fi
-    else
-        break
-    fi
-done
+    done
 
-# Create the Mona client secret...
+    # Create the Mona client secret...
 
-echo "$lp 🛡️   Creating Mona Azure Active Directory (AAD) client credentials..."
+    echo "$lp 🛡️   Creating Mona Azure Active Directory (AAD) client credentials..."
 
-add_mona_password_json=$(cat ./aad/add_password.json)
+    add_mona_password_json=$(cat ./aad/add_password.json)
 
-for i2 in {1..5}; do
-    add_mona_password_response=$(curl \
-        -X POST \
-        -H "Content-Type: application/json" \
-        -H "Authorization: Bearer $graph_token" \
-        -d "$add_mona_password_json" \
-        "https://graph.microsoft.com/v1.0/applications/$mona_aad_object_id/addPassword")
+    for i2 in {1..5}; do
+        add_mona_password_response=$(curl \
+            -X POST \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $graph_token" \
+            -d "$add_mona_password_json" \
+            "https://graph.microsoft.com/v1.0/applications/$mona_aad_object_id/addPassword")
 
-    mona_aad_app_secret=$(echo "$add_mona_password_response" | jq -r ".secretText")
+        mona_aad_app_secret=$(echo "$add_mona_password_response" | jq -r ".secretText")
 
-    if [[ -z $mona_aad_app_secret || $mona_aad_app_secret == null ]]; then
-        if [[ $i2 == 5 ]]; then
-            echo "$lp ❌   Failed to create Mona AAD app client credentials. Setup failed."
-            exit 1
+        if [[ -z $mona_aad_app_secret || $mona_aad_app_secret == null ]]; then
+            if [[ $i2 == 5 ]]; then
+                echo "$lp ❌   Failed to create Mona AAD app client credentials. Setup failed."
+                exit 1
+            else
+                sleep_for=$((2**i2))
+                echo "$lp ⚠️   Trying to create client credentials again in [$sleep_for] seconds."
+                sleep $sleep_for
+            fi
         else
-            sleep_for=$((2**i2))
-            echo "$lp ⚠️   Trying to create client credentials again in [$sleep_for] seconds."
-            sleep $sleep_for
+            break
         fi
-    else
-        break
-    fi
-done
+    done
 
-echo "$lp 🛡️   Creating Mona AAD app [$mona_aad_app_name] service principal..."
+    echo "$lp 🛡️   Creating Mona AAD app [$mona_aad_app_name] service principal..."
 
-for i3 in {1..5}; do
-    mona_aad_sp_id=$(az ad sp create --id "$mona_aad_app_id" --query id --output tsv);
+    for i3 in {1..5}; do
+        mona_aad_sp_id=$(az ad sp create --id "$mona_aad_app_id" --query id --output tsv);
 
-    if [[ -z $mona_aad_sp_id || $mona_aad_sp_id == null ]]; then
-        if [[ $i3 == 5 ]]; then
-            echo "$lp ❌   Failed to create Mona AAD app service principal. Setup failed."
-            exit 1
+        if [[ -z $mona_aad_sp_id || $mona_aad_sp_id == null ]]; then
+            if [[ $i3 == 5 ]]; then
+                echo "$lp ❌   Failed to create Mona AAD app service principal. Setup failed."
+                exit 1
+            else
+                sleep_for=$((2**i3))
+                echo "$lp ⚠️   Trying to create service principal again in [$sleep_for] seconds."
+                sleep $sleep_for
+            fi
         else
-            sleep_for=$((2**i3))
-            echo "$lp ⚠️   Trying to create service principal again in [$sleep_for] seconds."
-            sleep $sleep_for
+            break
         fi
-    else
-        break
-    fi
-done
+    done
+fi
 
 echo "$lp 🔐   Granting Mona service principal contributor access to [$resource_group_name]..."
 
