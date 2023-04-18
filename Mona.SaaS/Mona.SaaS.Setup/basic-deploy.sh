@@ -164,7 +164,7 @@ event_version="2021-10-01" # Default event version is always the latest one. Can
 language="en" # Default UI language is English ("en"). Can be overridden using [-l] flag below.
 integration_pack="default"
 
-while getopts "a:d:g:l:n:r:s:hp:cid:cs:spid" opt; do
+while getopts "a:d:g:l:n:r:s:h:i:x:p" opt; do
     case $opt in
         a)
             app_service_plan_id=$OPTARG
@@ -196,17 +196,14 @@ while getopts "a:d:g:l:n:r:s:hp:cid:cs:spid" opt; do
         h)
             no_splash=1
         ;;
-        p)
-            no_publish=1
-        ;;
-        cid)
+        i)
             mona_aad_app_id=$OPTARG
         ;;
-        cs)
+        x)
             # TODO the secret should probably be stored in a key vault
             mona_aad_app_secret=$OPTARG
         ;;
-        spid)
+        p)
             mona_aad_sp_id=$OPTARG
         ;;
         j)
