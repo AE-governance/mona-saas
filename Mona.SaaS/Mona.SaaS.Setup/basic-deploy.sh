@@ -272,17 +272,17 @@ if [[ -n $app_service_plan_id ]]; then
     if [[ $? -ne 0 ]]; then exit 1; fi;
 fi
 
-if [[ -n $mona_aad_app_id ]]; then
+if [[ -z "$mona_aad_app_id" ]]; then
     echo "$lp ❌   Parameter validation failed. Mona aad app id not provided."
     exit 1; 
 fi
 
-if [[ -n $mona_aad_app_secret ]]; then
+if [[ -z "$mona_aad_app_secret" ]]; then
     echo "$lp ❌   Parameter validation failed. Mona aad app secret value not provided."
     exit 1; 
 fi
 
-if [[ -n $mona_aad_sp_id ]]; then
+if [[ -z "$mona_aad_sp_id" ]]; then
     echo "$lp ❌   Parameter validation failed. Mona aad service principal id not provided."
     exit 1; 
 fi
