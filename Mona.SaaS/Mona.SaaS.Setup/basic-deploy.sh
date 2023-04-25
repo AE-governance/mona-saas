@@ -190,9 +190,6 @@ while getopts "a:d:g:l:n:r:s:h:i:x:p:" opt; do
         e)
             event_version=$OPTARG
         ;;
-        i)
-            integration_pack=$OPTARG
-        ;;
         h)
             no_splash=1
         ;;
