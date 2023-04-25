@@ -164,7 +164,7 @@ event_version="2021-10-01" # Default event version is always the latest one. Can
 language="en" # Default UI language is English ("en"). Can be overridden using [-l] flag below.
 integration_pack="default"
 
-while getopts "a:d:g:l:n:r:s:h:i:x:p:" opt; do
+while getopts "a:d:g:l:n:r:s:h:i:x:p:o:" opt; do
     case $opt in
         a)
             app_service_plan_id=$OPTARG
@@ -206,23 +206,15 @@ while getopts "a:d:g:l:n:r:s:h:i:x:p:" opt; do
         j)
             no_rbac=1 # Ill-advised. Only here for backward compatibility with early versions of Mona.
         ;;
+        o)
+            mona_admin_role_id=$OPTARG
+        ;;
         \?)
             usage
             exit 1
         ;;
     esac
 done
-
-echo "display_name: $display_name"
-echo "app_service_plan_id: $app_service_plan_id"
-echo "subscription_id: $subscription_id"
-echo "deployment_name: $deployment_name"
-echo "deployment_region: $deployment_region"
-echo "mona_aad_app_id: $mona_aad_app_id"
-echo "mona_aad_app_secret: $mona_aad_app_secret"
-echo "mona_aad_sp_id: $mona_aad_sp_id"
-
-
 
 # Check that user account is of valid type
 check_account_type "$lp"
@@ -352,6 +344,18 @@ for i4 in {1..5}; do
         break
     fi
 done
+
+echo "display_name: $display_name"
+echo "app_service_plan_id: $app_service_plan_id"
+echo "subscription_id: $subscription_id"
+echo "deployment_name: $deployment_name"
+echo "deployment_region: $deployment_region"
+echo "mona_aad_app_id: $mona_aad_app_id"
+echo "mona_aad_app_secret: $mona_aad_app_secret"
+echo "mona_aad_sp_id: $mona_aad_sp_id"
+echo "current_user_oid=$current_user_oid"
+echo "mona_admin_role_id=$mona_admin_role_id"
+
 
 # Deploy the Bicep template.
 
