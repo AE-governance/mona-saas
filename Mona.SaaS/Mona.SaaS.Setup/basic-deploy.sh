@@ -307,6 +307,26 @@ if [[ $(az group exists --resource-group "$resource_group_name" --output tsv) ==
         echo "$lp ❌   Unable to create resource group [$resource_group_name]. See above output for details. Setup failed."
         exit 1
     fi
+
+    for i4 in {1..5}; do
+        az role assignment create \
+            --role "Contributor" \
+            --assignee "$mona_aad_sp_id" \
+            --resource-group "$resource_group_name"
+
+        if [[ $? -ne 0 ]]; then
+            if [[ $i4 == 5 ]]; then
+                echo "$lp ❌   Failed to grant Mona service principal contributor access. Setup failed."
+                exit 1
+            else
+                sleep_for=$((2**i4))
+                echo "$lp ⚠️   Trying to grant service principal contributor access again in [$sleep_for] seconds."
+                sleep $sleep_for
+            fi
+        else
+            break
+        fi
+    done
 elif [[ -n $(az resource list --resource-group "$resource_group_name" --output tsv) ]]; then
     echo "$lp ❌   Mona must be deployed into an empty resource group. Resource group [$resource_group_name] contains resources. Setup failed."
     exit 1
@@ -317,25 +337,6 @@ current_user_tid=$(az account show --query tenantId --output tsv);
 
 echo "$lp 🔐   Granting Mona service principal contributor access to [$resource_group_name]..."
 
-for i4 in {1..5}; do
-    az role assignment create \
-        --role "Contributor" \
-        --assignee "$mona_aad_sp_id" \
-        --resource-group "$resource_group_name"
-
-    if [[ $? -ne 0 ]]; then
-        if [[ $i4 == 5 ]]; then
-            echo "$lp ❌   Failed to grant Mona service principal contributor access. Setup failed."
-            exit 1
-        else
-            sleep_for=$((2**i4))
-            echo "$lp ⚠️   Trying to grant service principal contributor access again in [$sleep_for] seconds."
-            sleep $sleep_for
-        fi
-    else
-        break
-    fi
-done
 
 echo "display_name: $display_name"
 echo "app_service_plan_id: $app_service_plan_id"
