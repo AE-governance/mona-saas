@@ -213,6 +213,17 @@ while getopts "a:d:g:l:n:r:s:h:i:x:p:" opt; do
     esac
 done
 
+echo "display_name: $display_name"
+echo "app_service_plan_id: $app_service_plan_id"
+echo "subscription_id: $subscription_id"
+echo "deployment_name: $deployment_name"
+echo "deployment_region: $deployment_region"
+echo "mona_aad_app_id: $mona_aad_app_id"
+echo "mona_aad_app_secret: $mona_aad_app_secret"
+echo "mona_aad_sp_id: $mona_aad_sp_id"
+
+
+
 # Check that user account is of valid type
 check_account_type "$lp"
 
