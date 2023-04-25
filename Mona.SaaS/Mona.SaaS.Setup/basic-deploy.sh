@@ -164,7 +164,7 @@ event_version="2021-10-01" # Default event version is always the latest one. Can
 language="en" # Default UI language is English ("en"). Can be overridden using [-l] flag below.
 integration_pack="default"
 
-while getopts "a:d:g:l:n:r:s:h:i:x:p:o:" opt; do
+while getopts "a:d:g:l:n:r:s:h:i:x:p:" opt; do
     case $opt in
         a)
             app_service_plan_id=$OPTARG
@@ -205,9 +205,6 @@ while getopts "a:d:g:l:n:r:s:h:i:x:p:o:" opt; do
         ;;
         j)
             no_rbac=1 # Ill-advised. Only here for backward compatibility with early versions of Mona.
-        ;;
-        o)
-            mona_admin_role_id=$OPTARG
         ;;
         \?)
             usage
@@ -284,11 +281,6 @@ if [[ -n $param_valid_failed ]]; then
     exit 1
 fi
 
-while [[ -z $current_user_oid ]]; do
-    current_user_oid=$(az ad signed-in-user show --query id --output tsv 2>/dev/null);
-    if [[ -z $current_user_oid ]]; then az login; fi;
-done
-
 # Make sure that we're pointing at the right subscription.
 
 if [[ -n $subscription_id ]]; then
@@ -353,8 +345,6 @@ echo "deployment_region: $deployment_region"
 echo "mona_aad_app_id: $mona_aad_app_id"
 echo "mona_aad_app_secret: $mona_aad_app_secret"
 echo "mona_aad_sp_id: $mona_aad_sp_id"
-echo "current_user_oid=$current_user_oid"
-echo "mona_admin_role_id=$mona_admin_role_id"
 
 
 # Deploy the Bicep template.
@@ -418,18 +408,6 @@ else
     [[ $? -eq 0 ]] && echo "$lp ✔   Integration pack [$integration_pack ($pack_path)] deployed.";
     [[ $? -ne 0 ]] && echo "$lp ⚠️   Integration pack [$integration_pack ($pack_path)] deployment failed."
 fi
-
-# Configure Mona.
-
-echo "$lp 🔐   Adding you to the Mona administrators role...";
-
-# Regardless of whether or not -j was set, add the current user to the admin role...
-
-curl -X POST \
-    -H "Content-Type: application/json" \
-    -H "Authorization: Bearer $graph_token" \
-    -d "{ \"principalId\": \"$current_user_oid\", \"resourceId\": \"$mona_aad_sp_id\", \"appRoleId\": \"$mona_admin_role_id\" }" \
-    "https://graph.microsoft.com/v1.0/users/$current_user_oid/appRoleAssignments"
 
 if [[ -z $no_publish ]]; then
     # Deploy Mona web application...
